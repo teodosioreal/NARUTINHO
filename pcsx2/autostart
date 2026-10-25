@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Abre o Naruto 5 direto, em tela cheia
+/usr/games/pcsx2-qt -fullscreen -- /jogo/naruto5.iso

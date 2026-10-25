@@ -1,0 +1,47 @@
+services:
+  pcsx2:
+    image: lscr.io/linuxserver/pcsx2:latest
+    container_name: naruto5-pcsx2
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - LC_ALL=pt_BR.UTF-8
+      # A senha fica no Caddy (abaixo); este container nao e exposto na internet
+      - SELKIES_UI_TITLE=Naruto 5 Online
+      # Resolucao fixa: menos trabalho para a VPS e mesma imagem para todos
+      - SELKIES_MANUAL_WIDTH=1280
+      - SELKIES_MANUAL_HEIGHT=720
+      - SELKIES_FRAMERATE=60
+      # Links de jogador 2 para os amigos (controle so no slot deles)
+      - SELKIES_ENABLE_SHARING=true
+      - SELKIES_ENABLE_PLAYER2=true
+      - SELKIES_ENABLE_PLAYER3=false
+      - SELKIES_ENABLE_PLAYER4=false
+      # Ninguem consegue abrir terminal, arquivos ou sudo pelo navegador
+      - HARDEN_DESKTOP=true
+      # Se o PCSX2 fechar, ele abre o jogo de novo sozinho
+      - RESTART_APP=true
+    volumes:
+      - ./config:/config
+      - ./jogo:/jogo:ro
+    shm_size: "1gb"
+    restart: unless-stopped
+    networks: [interna]
+
+  caddy:
+    image: caddy:2
+    container_name: naruto5-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    restart: unless-stopped
+    networks: [interna]
+    depends_on: [pcsx2]
+
+networks:
+  interna:

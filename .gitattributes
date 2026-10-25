@@ -1,0 +1,6 @@
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.ini text eol=lf
+pcsx2/autostart text eol=lf
+*.bat text eol=crlf

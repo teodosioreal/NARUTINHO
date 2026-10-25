@@ -1,0 +1,11 @@
+# Arquivos do jogo e da BIOS nunca vao para o GitHub
+jogo/
+bios/
+*.iso
+*.bin
+
+# Gerados na VPS
+config/
+caddy/
+Caddyfile
+.configurado
