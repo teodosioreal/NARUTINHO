@@ -13,3 +13,5 @@ docker-compose.override.yml
 save/
 docker-compose.yml
 entrada/
+__pycache__/
+*.pyc

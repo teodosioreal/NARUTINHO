@@ -4,3 +4,4 @@
 *.ini text eol=lf
 pcsx2/autostart text eol=lf
 *.bat text eol=crlf
+Dockerfile text eol=lf
