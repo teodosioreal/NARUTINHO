@@ -1,52 +1,57 @@
 # Naruto 5 Online 🍥
 
-Naruto Shippuden: Ultimate Ninja 5 (versão BR dublada) rodando numa VPS e jogado **pelo navegador**, com **todos os personagens liberados**.
+Naruto Shippuden: Ultimate Ninja 5 (versão BR dublada) rodando numa VPS e jogado **pelo navegador**, com **salas** e **todos os personagens liberados**.
 
-O jogo roda no servidor (PCSX2). Você e seus amigos abrem um link no Chrome/Edge, digitam a senha e jogam com controle, sem instalar nada.
+O jogo roda no servidor (PCSX2). Você e seus amigos abrem o site no Chrome/Edge, escolhem uma sala e jogam com controle, sem instalar nada.
 
 ```
-VPS: PCSX2 + Selkies + Caddy (HTTPS + senha)  ──►  navegador do jogador 1 (você)
-                                               ──►  navegador do jogador 2 (amigo, link de Player 2)
+                    ┌─ Sala 1 (PCSX2) ─► Jogador 1 + Jogador 2 + quem quiser assistir
+Página de entrada ──┼─ Sala 2 (PCSX2) ─► Jogador 1 + Jogador 2 + quem quiser assistir
+ (HTTPS + senha)    └─ ...
 ```
 
-> ⚠️ A ISO do jogo e a BIOS do PS2 **não ficam neste repositório**. Elas vão direto do seu PC para a VPS. Mantenha o site com senha e só para seus amigos.
+> ⚠️ A ISO do jogo, a BIOS do PS2 e o memory card **não ficam neste repositório**. Eles vão direto do seu PC para a VPS. Mantenha o site com senha e só para seus amigos.
 
 ## O que vem pronto
 
+- **Salas**: cada sala é um PS2 separado, com seu próprio Jogador 1, Jogador 2 e espectadores. A página de entrada lista as salas com os botões **Jogador 1**, **Jogador 2** e **Assistir**.
 - **Todos os personagens liberados**: `ferramentas/liberar_personagens.py` grava os códigos do CodeMasters Project direto no executável da ISO (`201E94B4 24020003` e `201E95AC 2402FFFF`). Ele confere os bytes antes e não altera nada se a versão do jogo for outra.
-- **PCSX2 já configurado**: abre o jogo sozinho em tela cheia, sem o assistente inicial, com renderizador por CPU (VPS sem placa de vídeo) e controles do jogador 1 e 2 já mapeados.
-- **HTTPS de verdade e senha** pelo Caddy, com endereço grátis `IP.sslip.io` (sem precisar comprar domínio).
+- **Save completo** (opcional): se existir `save/Mcd001.ps2`, cada sala começa com esse memory card. O progresso de cada sala é separado.
+- **PCSX2 já configurado**: abre o jogo sozinho em tela cheia, com renderizador por CPU (VPS sem placa de vídeo) e controles dos jogadores 1 e 2 já mapeados.
+- **HTTPS de verdade e senha** pelo Caddy, com endereço grátis `IP.sslip.io` e salas em `sala1.IP.sslip.io`, `sala2...` (sem precisar comprar domínio).
 - **Navegador protegido**: ninguém abre terminal, arquivos ou sudo pela página.
 
 ## Instalação (do seu Windows)
 
 1. Crie a VPS com **Ubuntu 24.04** (veja a recomendação abaixo) e anote o **IP** e a **senha de root**.
 2. Dê dois cliques em **`ENVIAR_PARA_VPS.bat`** e informe o IP.
-   - Ele baixa este repositório na VPS, envia a BIOS e a ISO (2 GB, demora) e roda o instalador.
-3. O instalador pergunta o **usuário** e a **senha do site**. No fim, mostra o link:
-   `https://SEU-IP.sslip.io`
+   - Ele baixa este repositório na VPS, envia a BIOS, o memory card e a ISO (2 GB, demora) e roda o instalador.
+3. O instalador pergunta o **usuário**, a **senha do site** e **quantas salas** criar. No fim, mostra os links.
 
 Para instalar manualmente na VPS:
 
 ```bash
 git clone https://github.com/teodosioreal/NARUTINHO.git /opt/naruto5
-# coloque a ISO em /opt/naruto5/jogo/ e a BIOS (.bin) em /opt/naruto5/bios/
+# ISO em /opt/naruto5/jogo/, BIOS (.bin) em /opt/naruto5/bios/, memory card (opcional) em /opt/naruto5/save/Mcd001.ps2
 sudo bash /opt/naruto5/instalar.sh
 ```
 
+Para mudar o número de salas depois, é só rodar `sudo bash instalar.sh` de novo.
+
+Com domínio próprio, aponte o domínio **e** `*.seudominio` (wildcard) para o IP da VPS.
+
 ### VPS que já tem um site (modo teste)
 
-Se as portas 80/443 já estiverem em uso (nginx, Apache, painel), o instalador **não mexe no seu site**. Ele entra no modo teste: o jogo fica em `https://IP:8443`, com a senha e um certificado próprios do container. O navegador vai avisar que o site "não é seguro": clique em **Avançado > Continuar**.
+Se as portas 80/443 já estiverem em uso (nginx, Apache, painel), o instalador **não mexe no seu site**. Ele entra no modo teste: a página de entrada fica em `https://IP:8443` e as salas em `:8444`, `:8445`... O navegador vai avisar que o site "não é seguro": clique em **Avançado > Continuar**.
 
-## Como jogar com um amigo
+## Como jogar
 
-1. Abra o link, entre com usuário e senha e conecte seu controle (ou use o teclado).
-2. No menu lateral da página, abra **Sharing** e copie o link de **Player 2**.
-3. Mande o link para o amigo. Ele entra com a mesma senha, conecta o controle e aperta um botão. O controle dele vira o jogador 2.
+1. Abra a página de entrada e entre com usuário e senha.
+2. Combinem quem fica em cada sala. Um clica em **Jogador 1** e o outro em **Jogador 2**. Os demais podem clicar em **Assistir**.
+3. Cada sala pede a senha de novo (é a mesma).
+4. Conecte o controle e aperte um botão com a página da sala aberta.
 
-O amigo precisa de um **controle** (USB ou Bluetooth, de Xbox ou PlayStation), porque o link de Player 2 só envia controle.
-
-### Teclado do jogador 1
+O Jogador 2 precisa de um **controle** (USB ou Bluetooth, de Xbox ou PlayStation). O Jogador 1 pode usar controle ou teclado:
 
 | PS2 | Tecla | PS2 | Tecla |
 |---|---|---|---|
@@ -58,37 +63,32 @@ O amigo precisa de um **controle** (USB ou Bluetooth, de Xbox ou PlayStation), p
 
 ## VPS recomendada
 
-O PCSX2 depende muito do processador. O jogo e a codificação do vídeo rodam na CPU, então:
+Cada sala é um PS2 inteiro rodando na CPU, mais a codificação do vídeo. A conta é **cerca de 4 vCPUs e 2 GB de RAM por sala**.
 
-| | Recomendação |
-|---|---|
-| **Onde** | **São Paulo**, para ter pouco atraso no controle para quem está no Brasil |
-| **CPU** | 4 vCPUs (de preferência dedicadas, AMD EPYC recente) |
-| **RAM** | 8 GB |
-| **Disco** | 40 GB+ |
-| **Sistema** | Ubuntu 24.04 |
+| Salas | vCPU | RAM |
+|---|---|---|
+| 1 | 4 | 8 GB |
+| 2 | 8 | 16 GB |
+| 3 | 12 | 16 GB |
 
-**Sugestão: [Vultr](https://www.vultr.com/pricing/), região São Paulo**, com cobrança por hora:
-- Para testar: **High Performance, 4 vCPU / 8 GB**. É mais barato, mas a CPU é compartilhada.
-- Se travar ou ficar lento: suba para **Optimized Cloud, CPU Optimized, 4 vCPU** (CPU dedicada).
-- Como a cobrança é por hora, dá para criar, testar uma noite e apagar. São Paulo costuma ter um pequeno acréscimo no preço, então confira o valor no painel.
+Escolha um datacenter em **São Paulo**, para ter pouco atraso no controle para quem está no Brasil, com **Ubuntu 24.04**.
 
 ## Comandos úteis (na VPS)
 
 ```bash
 cd /opt/naruto5
-docker compose restart pcsx2   # reinicia o jogo
-docker compose logs -f         # ver o que está acontecendo
-docker compose down            # desligar
-docker compose up -d           # ligar
+docker compose restart sala1   # reinicia a sala 1
+docker compose logs -f sala1   # ver o que está acontecendo na sala 1
+docker compose down            # desligar tudo
+docker compose up -d           # ligar tudo
 rm .configurado && sudo bash instalar.sh   # trocar usuário/senha
 ```
 
-Os saves (memory card) ficam em `config/.config/PCSX2/memcards/`.
+Os saves de cada sala ficam em `config/salaN/.config/PCSX2/memcards/`.
 
 ## Problemas comuns
 
-- **Jogo lento / som picotando**: a CPU da VPS está fraca. Use um plano com CPU dedicada.
-- **Tela preta**: rode `docker compose logs pcsx2`. Se aparecer erro de *seccomp*, adicione `security_opt: [seccomp:unconfined]` ao serviço `pcsx2` no `docker-compose.yml`.
+- **Jogo lento / som picotando**: CPU fraca para o número de salas. Diminua as salas ou use uma VPS maior.
+- **Tela preta**: rode `docker compose logs sala1`. Se aparecer erro de *seccomp*, adicione `security_opt: [seccomp:unconfined]` em `x-sala` no `instalar.sh` e rode o instalador de novo.
 - **Erro de certificado ou site não abre**: confira se as portas 80 e 443 estão liberadas no firewall do painel da VPS.
-- **Controle do amigo não funciona**: ele precisa abrir o link de *Player 2* (não o link normal) e apertar um botão do controle com a página em foco.
+- **Controle do Jogador 2 não funciona**: ele precisa entrar pelo botão **Jogador 2** e apertar um botão do controle com a página em foco.

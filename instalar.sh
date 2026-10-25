@@ -1,5 +1,6 @@
 #!/bin/bash
-# Instala o Naruto 5 Online numa VPS Ubuntu (22.04 ou 24.04).
+# Instala o Naruto 5 Online numa VPS Ubuntu: uma pagina de entrada + varias salas,
+# cada sala com o seu proprio PCSX2 (jogador 1, jogador 2 e quem quiser assistir).
 # Uso: sudo bash instalar.sh
 set -euo pipefail
 
@@ -35,19 +36,22 @@ BIOS_NOME=$(basename "$BIOS")
 porta_ocupada() { ss -tlnH "sport = :$1" | grep -q .; }
 
 IP=$(curl -fsS4 https://api.ipify.org || hostname -I | awk '{print $1}')
+NUCLEOS=$(nproc)
 if [[ -f .configurado ]]; then
   source .configurado
 else
   # Se ja existe outro site (nginx, apache...) nas portas 80/443, nao mexe nele:
-  # usa o modo teste, numa porta propria com o HTTPS do proprio container.
+  # usa o modo teste, com portas proprias e certificado do proprio Caddy.
   if porta_ocupada 80 || porta_ocupada 443; then
     MODO=teste
     echo "As portas 80/443 ja estao em uso por outro programa (seu site continua intacto)."
     PORTA=8443
     while porta_ocupada "$PORTA"; do PORTA=$((PORTA + 1)); done
-    echo "Usando o modo teste na porta $PORTA."
+    echo "Usando o modo teste a partir da porta $PORTA."
+    DOMINIO=""
   else
     MODO=normal
+    PORTA=443
     DOMINIO_PADRAO="${IP//./-}.sslip.io"
     read -rp "Endereco do site [$DOMINIO_PADRAO]: " DOMINIO
     DOMINIO=${DOMINIO:-$DOMINIO_PADRAO}
@@ -59,80 +63,184 @@ else
     [[ ${#SENHA} -ge 6 ]] && break
     echo "Use pelo menos 6 caracteres."
   done
-  if [[ $MODO == normal ]]; then
-    HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$SENHA")
-    printf 'MODO=normal\nDOMINIO=%q\nUSUARIO=%q\nHASH=%q\n' "$DOMINIO" "$USUARIO" "$HASH" > .configurado
-  else
-    printf 'MODO=teste\nPORTA=%q\nUSUARIO=%q\nSENHA=%q\n' "$PORTA" "$USUARIO" "$SENHA" > .configurado
-  fi
+  HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$SENHA")
+  SALAS=$(( NUCLEOS / 4 )); (( SALAS < 1 )) && SALAS=1
+  printf 'MODO=%q\nDOMINIO=%q\nPORTA=%q\nUSUARIO=%q\nHASH=%q\nSALAS=%q\n' \
+    "$MODO" "$DOMINIO" "$PORTA" "$USUARIO" "$HASH" "$SALAS" > .configurado
   chmod 600 .configurado
 fi
 
+# Cada sala e um PS2 inteiro rodando: ~4 nucleos e ~2 GB de RAM por sala
+SUGESTAO=$(( NUCLEOS / 4 )); (( SUGESTAO < 1 )) && SUGESTAO=1
+echo
+echo "Esta VPS tem $NUCLEOS nucleos: aguenta bem cerca de $SUGESTAO sala(s)."
+read -rp "Quantas salas criar? [$SALAS]: " RESP
+SALAS=${RESP:-$SALAS}
+[[ $SALAS =~ ^[1-9][0-9]?$ ]] || erro "numero de salas invalido: $SALAS"
+sed -i "s/^SALAS=.*/SALAS=$SALAS/" .configurado
+
+# Endereco de cada coisa
 if [[ $MODO == normal ]]; then
-  rm -f docker-compose.override.yml
-  cat > Caddyfile <<EOF
-$DOMINIO {
-	basic_auth {
-		$USUARIO $HASH
-	}
-	reverse_proxy pcsx2:3000
-}
-EOF
+  ENDERECO_ENTRADA="$DOMINIO"
+  endereco_sala() { echo "sala$1.$DOMINIO"; }
+  TLS=""
 else
-  # Senha e HTTPS (certificado autoassinado) feitos pelo proprio container
-  cat > docker-compose.override.yml <<EOF
-services:
-  pcsx2:
-    ports:
-      - "$PORTA:3001"
-    environment:
-      - CUSTOM_USER=$USUARIO
-      - PASSWORD=$SENHA
-EOF
-  chmod 600 docker-compose.override.yml
+  ENDERECO_ENTRADA="$IP:$PORTA"
+  endereco_sala() { echo "$IP:$((PORTA + $1))"; }
+  TLS="	tls internal"
 fi
 
-# --- 4. PCSX2 ja configurado -------------------------------------------------
+# --- 4. Caddy (HTTPS + senha), pagina de entrada e docker-compose ------------
+msg "Gerando as $SALAS sala(s)..."
+AUTH="	basic_auth {
+		$USUARIO $HASH
+	}"
+
+{
+  echo "{"
+  echo "	auto_https disable_redirects"
+  echo "}"
+  echo
+  echo "https://$ENDERECO_ENTRADA {"
+  echo "$AUTH"
+  [[ -n $TLS ]] && echo "$TLS"
+  echo "	root * /srv/entrada"
+  echo "	file_server"
+  echo "}"
+  for i in $(seq 1 "$SALAS"); do
+    echo
+    echo "https://$(endereco_sala "$i") {"
+    echo "$AUTH"
+    [[ -n $TLS ]] && echo "$TLS"
+    echo "	reverse_proxy sala$i:3000"
+    echo "}"
+  done
+} > Caddyfile
+
+mkdir -p entrada
+cp pagina/index.html entrada/index.html
+{
+  echo "window.SALAS = ["
+  for i in $(seq 1 "$SALAS"); do
+    echo "  { nome: 'Sala $i', url: 'https://$(endereco_sala "$i")/' },"
+  done
+  echo "];"
+} > entrada/salas.js
+
+if [[ $MODO == normal ]]; then
+  PORTAS_HOST="80 443"
+  PORTAS_COMPOSE='      - "80:80"
+      - "443:443"'
+else
+  PORTAS_HOST=$(seq "$PORTA" $((PORTA + SALAS)) | tr '\n' ' ')
+  PORTAS_COMPOSE="      - \"$PORTA-$((PORTA + SALAS)):$PORTA-$((PORTA + SALAS))\""
+fi
+
+{
+  cat <<EOF
+# Gerado pelo instalar.sh: para mudar, rode o instalador de novo.
+x-sala: &sala
+  image: lscr.io/linuxserver/pcsx2:latest
+  shm_size: "1gb"
+  restart: unless-stopped
+  networks: [interna]
+
+x-ambiente: &ambiente
+  PUID: "1000"
+  PGID: "1000"
+  TZ: America/Sao_Paulo
+  LC_ALL: pt_BR.UTF-8
+  # Resolucao fixa: menos trabalho para a VPS e mesma imagem para todos
+  SELKIES_MANUAL_WIDTH: "1280"
+  SELKIES_MANUAL_HEIGHT: "720"
+  SELKIES_FRAMERATE: "60"
+  # Link de jogador 2 (o controle do amigo cai so no slot 2)
+  SELKIES_ENABLE_SHARING: "true"
+  SELKIES_ENABLE_PLAYER2: "true"
+  SELKIES_ENABLE_PLAYER3: "false"
+  SELKIES_ENABLE_PLAYER4: "false"
+  # Ninguem consegue abrir terminal, arquivos ou sudo pelo navegador
+  HARDEN_DESKTOP: "true"
+  # Se o PCSX2 fechar, ele abre o jogo de novo sozinho
+  RESTART_APP: "true"
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: naruto5-caddy
+    ports:
+$PORTAS_COMPOSE
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./entrada:/srv/entrada:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    restart: unless-stopped
+    networks: [interna]
+EOF
+  for i in $(seq 1 "$SALAS"); do
+    cat <<EOF
+
+  sala$i:
+    <<: *sala
+    container_name: naruto5-sala$i
+    environment:
+      <<: *ambiente
+      SELKIES_UI_TITLE: "Naruto 5 - Sala $i"
+    volumes:
+      - ./config/sala$i:/config
+      - ./jogo:/jogo:ro
+EOF
+  done
+  cat <<EOF
+
+networks:
+  interna:
+EOF
+} > docker-compose.yml
+
+# --- 5. PCSX2 ja configurado em cada sala ------------------------------------
 msg "Configurando o PCSX2..."
-CFG=config/.config/PCSX2
-mkdir -p "$CFG/inis" "$CFG/bios" config/.config/labwc config/.config/openbox
-cp "$BIOS" "$CFG/bios/"
-THREADS=$(( $(nproc) - 2 )); (( THREADS < 1 )) && THREADS=1; (( THREADS > 8 )) && THREADS=8
-sed -e "s|__BIOS__|$BIOS_NOME|" -e "s|__THREADS__|$THREADS|" pcsx2/PCSX2.ini > "$CFG/inis/PCSX2.ini"
-cp pcsx2/autostart config/.config/labwc/autostart
-cp pcsx2/autostart config/.config/openbox/autostart
-chmod +x config/.config/labwc/autostart config/.config/openbox/autostart
+THREADS=$(( NUCLEOS / SALAS - 2 )); (( THREADS < 1 )) && THREADS=1; (( THREADS > 8 )) && THREADS=8
+for i in $(seq 1 "$SALAS"); do
+  C=config/sala$i
+  CFG=$C/.config/PCSX2
+  mkdir -p "$CFG/inis" "$CFG/bios" "$C/.config/labwc" "$C/.config/openbox"
+  cp "$BIOS" "$CFG/bios/"
+  sed -e "s|__BIOS__|$BIOS_NOME|" -e "s|__THREADS__|$THREADS|" pcsx2/PCSX2.ini > "$CFG/inis/PCSX2.ini"
+  # Save completo no memory card, so na primeira vez (nao apaga o progresso da sala)
+  if [[ -f save/Mcd001.ps2 && ! -f $CFG/memcards/Mcd001.ps2 ]]; then
+    mkdir -p "$CFG/memcards"
+    cp save/Mcd001.ps2 "$CFG/memcards/Mcd001.ps2"
+  fi
+  for wm in labwc openbox; do
+    cp pcsx2/autostart "$C/.config/$wm/autostart"
+    chmod +x "$C/.config/$wm/autostart"
+  done
+done
 chown -R 1000:1000 config
 
-# --- 5. Firewall e subir -----------------------------------------------------
-if [[ $MODO == normal ]]; then PORTAS="80 443"; else PORTAS="$PORTA"; fi
+# --- 6. Firewall e subir -----------------------------------------------------
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
-  for p in $PORTAS; do ufw allow "$p/tcp"; done
+  for p in $PORTAS_HOST; do ufw allow "$p/tcp"; done
 fi
 
 msg "Subindo o servidor (a primeira vez demora alguns minutos)..."
-if [[ $MODO == normal ]]; then
-  docker compose pull
-  docker compose up -d --force-recreate
-  LINK="https://$DOMINIO"
-else
-  docker compose rm -sf caddy >/dev/null 2>&1 || true
-  docker compose pull pcsx2
-  docker compose up -d --force-recreate pcsx2
-  LINK="https://$IP:$PORTA"
-fi
+docker compose pull
+docker compose up -d --force-recreate --remove-orphans
 
 echo
 echo "=============================================================="
-echo "  PRONTO! Abra no navegador:  $LINK"
+echo "  PRONTO! Pagina de entrada:  https://$ENDERECO_ENTRADA"
 echo "  Usuario: $USUARIO   (senha: a que voce escolheu)"
+echo
+for i in $(seq 1 "$SALAS"); do
+  echo "  Sala $i:  https://$(endereco_sala "$i")"
+done
 if [[ $MODO == teste ]]; then
   echo
   echo "  MODO TESTE: o navegador vai avisar que o site 'nao e seguro'"
-  echo "  (certificado proprio). Clique em Avancado > Continuar."
-  echo "  Libere a porta $PORTA no firewall do painel da VPS, se houver."
+  echo "  (certificado proprio). Clique em Avancado > Continuar, em cada sala."
+  echo "  Libere as portas $PORTAS_HOST no firewall do painel da VPS, se houver."
 fi
-echo
-echo "  Amigo como jogador 2: menu lateral > Sharing > copie o link"
-echo "  de 'Player 2' e mande para ele (ele usa a mesma senha)."
 echo "=============================================================="

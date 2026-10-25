@@ -25,6 +25,13 @@ scp "%BIOS%" %USR%@%IP%:/opt/naruto5/bios/
 if errorlevel 1 ( pause & exit /b 1 )
 
 echo.
+if exist "%~dp0save\Mcd001.ps2" (
+  echo Enviando o memory card com o save...
+  ssh %USR%@%IP% "mkdir -p /opt/naruto5/save"
+  scp "%~dp0save\Mcd001.ps2" %USR%@%IP%:/opt/naruto5/save/
+)
+
+echo.
 echo [3/4] Enviando a ISO (2 GB, pode demorar bastante)...
 scp "%ISO%" %USR%@%IP%:/opt/naruto5/jogo/naruto5.iso
 if errorlevel 1 ( pause & exit /b 1 )

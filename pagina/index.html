@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Naruto 5 Online</title>
+<style>
+  :root {
+    --fundo: #14100d;
+    --cartao: #211a15;
+    --borda: #3a2d23;
+    --texto: #f4ece4;
+    --suave: #b8a797;
+    --laranja: #ff7a1a;
+    --laranja-escuro: #d95f00;
+    --azul: #3b82f6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 50% -20%, #3a1d08 0%, var(--fundo) 60%);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 32px 16px 48px;
+  }
+  header { text-align: center; margin-bottom: 32px; }
+  h1 {
+    margin: 0;
+    font-size: clamp(2rem, 6vw, 3.2rem);
+    letter-spacing: .02em;
+    color: var(--laranja);
+    text-shadow: 0 3px 0 #000;
+  }
+  header p { margin: 8px 0 0; color: var(--suave); }
+  .salas {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .sala {
+    background: var(--cartao);
+    border: 1px solid var(--borda);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sala h2 { margin: 0 0 4px; font-size: 1.4rem; }
+  .botao {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 12px;
+    border-radius: 10px;
+    color: #fff;
+    background: var(--laranja-escuro);
+    border: 0;
+  }
+  .botao:hover { background: var(--laranja); }
+  .botao.p2 { background: var(--azul); }
+  .botao.p2:hover { filter: brightness(1.15); }
+  .botao.ver { background: transparent; border: 1px solid var(--borda); color: var(--suave); }
+  .botao.ver:hover { color: var(--texto); border-color: var(--suave); }
+  .ajuda {
+    max-width: 960px;
+    margin: 32px auto 0;
+    color: var(--suave);
+    font-size: .95rem;
+    line-height: 1.6;
+  }
+  .ajuda b { color: var(--texto); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>NARUTO 5 ONLINE</h1>
+    <p>Todos os personagens liberados · escolha uma sala</p>
+  </header>
+
+  <main class="salas" id="salas"></main>
+
+  <section class="ajuda">
+    <p><b>Como jogar:</b> combinem quem fica em cada sala. Um entra como <b>Jogador 1</b> e o outro como <b>Jogador 2</b>. O resto pode <b>assistir</b> e revezar.</p>
+    <p><b>Controle:</b> conecte o controle (Xbox ou PlayStation) antes de abrir a sala e aperte qualquer botão com a página aberta. O Jogador 1 também pode usar o teclado: setas, J K L I, Enter = Start.</p>
+    <p>A sala vai pedir a senha de novo: é a mesma desta página.</p>
+  </section>
+
+  <script src="salas.js"></script>
+  <script>
+    const lista = document.getElementById('salas');
+    for (const s of window.SALAS || []) {
+      const el = document.createElement('article');
+      el.className = 'sala';
+      el.innerHTML =
+        '<h2></h2>' +
+        '<a class="botao p1" target="_blank" rel="noopener">Jogador 1</a>' +
+        '<a class="botao p2" target="_blank" rel="noopener">Jogador 2</a>' +
+        '<a class="botao ver" target="_blank" rel="noopener">Assistir</a>';
+      el.querySelector('h2').textContent = s.nome;
+      const [p1, p2, ver] = el.querySelectorAll('a');
+      p1.href = s.url;
+      p2.href = s.url + '#player2';
+      ver.href = s.url + '#shared';
+      lista.appendChild(el);
+    }
+  </script>
+</body>
+</html>
