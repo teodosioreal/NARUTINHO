@@ -31,14 +31,27 @@ BIOS=$(find bios -maxdepth 1 -iname '*.bin' | head -n1)
 [[ -n "$BIOS" ]] || erro "coloque a BIOS do PS2 (.bin) na pasta $PASTA/bios"
 BIOS_NOME=$(basename "$BIOS")
 
-# --- 3. Endereco, usuario e senha --------------------------------------------
+# --- 3. Modo, endereco, usuario e senha --------------------------------------
+porta_ocupada() { ss -tlnH "sport = :$1" | grep -q .; }
+
 IP=$(curl -fsS4 https://api.ipify.org || hostname -I | awk '{print $1}')
-DOMINIO_PADRAO="${IP//./-}.sslip.io"
 if [[ -f .configurado ]]; then
   source .configurado
 else
-  read -rp "Endereco do site [$DOMINIO_PADRAO]: " DOMINIO
-  DOMINIO=${DOMINIO:-$DOMINIO_PADRAO}
+  # Se ja existe outro site (nginx, apache...) nas portas 80/443, nao mexe nele:
+  # usa o modo teste, numa porta propria com o HTTPS do proprio container.
+  if porta_ocupada 80 || porta_ocupada 443; then
+    MODO=teste
+    echo "As portas 80/443 ja estao em uso por outro programa (seu site continua intacto)."
+    PORTA=8443
+    while porta_ocupada "$PORTA"; do PORTA=$((PORTA + 1)); done
+    echo "Usando o modo teste na porta $PORTA."
+  else
+    MODO=normal
+    DOMINIO_PADRAO="${IP//./-}.sslip.io"
+    read -rp "Endereco do site [$DOMINIO_PADRAO]: " DOMINIO
+    DOMINIO=${DOMINIO:-$DOMINIO_PADRAO}
+  fi
   read -rp "Usuario para entrar no site [naruto]: " USUARIO
   USUARIO=${USUARIO:-naruto}
   while true; do
@@ -46,12 +59,18 @@ else
     [[ ${#SENHA} -ge 6 ]] && break
     echo "Use pelo menos 6 caracteres."
   done
-  HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$SENHA")
-  printf 'DOMINIO=%q\nUSUARIO=%q\nHASH=%q\n' "$DOMINIO" "$USUARIO" "$HASH" > .configurado
+  if [[ $MODO == normal ]]; then
+    HASH=$(docker run --rm caddy:2 caddy hash-password --plaintext "$SENHA")
+    printf 'MODO=normal\nDOMINIO=%q\nUSUARIO=%q\nHASH=%q\n' "$DOMINIO" "$USUARIO" "$HASH" > .configurado
+  else
+    printf 'MODO=teste\nPORTA=%q\nUSUARIO=%q\nSENHA=%q\n' "$PORTA" "$USUARIO" "$SENHA" > .configurado
+  fi
   chmod 600 .configurado
 fi
 
-cat > Caddyfile <<EOF
+if [[ $MODO == normal ]]; then
+  rm -f docker-compose.override.yml
+  cat > Caddyfile <<EOF
 $DOMINIO {
 	basic_auth {
 		$USUARIO $HASH
@@ -59,6 +78,19 @@ $DOMINIO {
 	reverse_proxy pcsx2:3000
 }
 EOF
+else
+  # Senha e HTTPS (certificado autoassinado) feitos pelo proprio container
+  cat > docker-compose.override.yml <<EOF
+services:
+  pcsx2:
+    ports:
+      - "$PORTA:3001"
+    environment:
+      - CUSTOM_USER=$USUARIO
+      - PASSWORD=$SENHA
+EOF
+  chmod 600 docker-compose.override.yml
+fi
 
 # --- 4. PCSX2 ja configurado -------------------------------------------------
 msg "Configurando o PCSX2..."
@@ -73,18 +105,33 @@ chmod +x config/.config/labwc/autostart config/.config/openbox/autostart
 chown -R 1000:1000 config
 
 # --- 5. Firewall e subir -----------------------------------------------------
+if [[ $MODO == normal ]]; then PORTAS="80 443"; else PORTAS="$PORTA"; fi
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
-  ufw allow 80/tcp && ufw allow 443/tcp
+  for p in $PORTAS; do ufw allow "$p/tcp"; done
 fi
 
 msg "Subindo o servidor (a primeira vez demora alguns minutos)..."
-docker compose pull
-docker compose up -d --force-recreate
+if [[ $MODO == normal ]]; then
+  docker compose pull
+  docker compose up -d --force-recreate
+  LINK="https://$DOMINIO"
+else
+  docker compose rm -sf caddy >/dev/null 2>&1 || true
+  docker compose pull pcsx2
+  docker compose up -d --force-recreate pcsx2
+  LINK="https://$IP:$PORTA"
+fi
 
 echo
 echo "=============================================================="
-echo "  PRONTO! Abra no navegador:  https://$DOMINIO"
+echo "  PRONTO! Abra no navegador:  $LINK"
 echo "  Usuario: $USUARIO   (senha: a que voce escolheu)"
+if [[ $MODO == teste ]]; then
+  echo
+  echo "  MODO TESTE: o navegador vai avisar que o site 'nao e seguro'"
+  echo "  (certificado proprio). Clique em Avancado > Continuar."
+  echo "  Libere a porta $PORTA no firewall do painel da VPS, se houver."
+fi
 echo
 echo "  Amigo como jogador 2: menu lateral > Sharing > copie o link"
 echo "  de 'Player 2' e mande para ele (ele usa a mesma senha)."

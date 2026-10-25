@@ -34,6 +34,10 @@ git clone https://github.com/teodosioreal/NARUTINHO.git /opt/naruto5
 sudo bash /opt/naruto5/instalar.sh
 ```
 
+### VPS que já tem um site (modo teste)
+
+Se as portas 80/443 já estiverem em uso (nginx, Apache, painel), o instalador **não mexe no seu site**. Ele entra no modo teste: o jogo fica em `https://IP:8443`, com a senha e um certificado próprios do container. O navegador vai avisar que o site "não é seguro": clique em **Avançado > Continuar**.
+
 ## Como jogar com um amigo
 
 1. Abra o link, entre com usuário e senha e conecte seu controle (ou use o teclado).
