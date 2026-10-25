@@ -14,6 +14,8 @@
     --laranja: #ff7a1a;
     --laranja-escuro: #d95f00;
     --azul: #3b82f6;
+    --verde: #22c55e;
+    --vermelho: #ef4444;
   }
   * { box-sizing: border-box; }
   body {
@@ -24,7 +26,7 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     padding: 32px 16px 48px;
   }
-  header { text-align: center; margin-bottom: 32px; }
+  header { text-align: center; margin-bottom: 24px; }
   h1 {
     margin: 0;
     font-size: clamp(2rem, 6vw, 3.2rem);
@@ -33,12 +35,48 @@
     text-shadow: 0 3px 0 #000;
   }
   header p { margin: 8px 0 0; color: var(--suave); }
+  .largura { max-width: 960px; margin: 0 auto; }
+
+  /* Chat de voz */
+  .voz {
+    background: var(--cartao);
+    border: 1px solid var(--borda);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  .voz-topo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .voz-topo h2 { margin: 0; font-size: 1.1rem; flex: 1 1 auto; }
+  .voz input {
+    background: var(--fundo);
+    border: 1px solid var(--borda);
+    color: var(--texto);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 1rem;
+    width: 180px;
+  }
+  .voz-status { color: var(--suave); font-size: .9rem; margin: 10px 0 0; }
+  .pessoas { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+  .pessoa {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--fundo); border: 1px solid var(--borda);
+    border-radius: 10px; padding: 8px 12px;
+  }
+  .pessoa .bola {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--borda); flex: none; transition: background .1s, box-shadow .1s;
+  }
+  .pessoa.falando .bola { background: var(--verde); box-shadow: 0 0 8px var(--verde); }
+  .pessoa .nome { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pessoa .info { color: var(--suave); font-size: .85rem; }
+  .pessoa.mudo .info::before { content: "🔇 "; }
+  .pessoa input[type=range] { width: 90px; padding: 0; }
+
   .salas {
     display: grid;
     gap: 16px;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    max-width: 960px;
-    margin: 0 auto;
   }
   .sala {
     background: var(--cartao);
@@ -49,26 +87,35 @@
     flex-direction: column;
     gap: 12px;
   }
+  .sala.na-voz { border-color: var(--verde); }
   .sala h2 { margin: 0 0 4px; font-size: 1.4rem; }
   .botao {
     display: block;
     text-align: center;
     text-decoration: none;
+    font: inherit;
     font-weight: 700;
     padding: 12px;
     border-radius: 10px;
     color: #fff;
     background: var(--laranja-escuro);
     border: 0;
+    cursor: pointer;
   }
   .botao:hover { background: var(--laranja); }
   .botao.p2 { background: var(--azul); }
   .botao.p2:hover { filter: brightness(1.15); }
-  .botao.ver { background: transparent; border: 1px solid var(--borda); color: var(--suave); }
-  .botao.ver:hover { color: var(--texto); border-color: var(--suave); }
+  .botao.ver, .botao.voz-btn { background: transparent; border: 1px solid var(--borda); color: var(--suave); }
+  .botao.ver:hover, .botao.voz-btn:hover { color: var(--texto); border-color: var(--suave); }
+  .botao.voz-btn.ativo { border-color: var(--verde); color: var(--verde); }
+  .botao.pequeno { padding: 9px 14px; display: inline-block; }
+  .botao.sair { background: var(--vermelho); }
+  .botao.sair:hover { filter: brightness(1.1); background: var(--vermelho); }
+  .botao.mutado { background: var(--vermelho); }
+  [hidden] { display: none !important; }
+
   .ajuda {
-    max-width: 960px;
-    margin: 32px auto 0;
+    margin-top: 32px;
     color: var(--suave);
     font-size: .95rem;
     line-height: 1.6;
@@ -82,31 +129,241 @@
     <p>Todos os personagens liberados · escolha uma sala</p>
   </header>
 
-  <main class="salas" id="salas"></main>
+  <div class="largura">
+    <section class="voz" aria-label="Chat de voz">
+      <div class="voz-topo">
+        <h2 id="voz-titulo">🎧 Chat de voz</h2>
+        <input id="voz-nome" maxlength="24" placeholder="Seu nome" autocomplete="nickname">
+        <button class="botao pequeno voz-btn" id="voz-geral">Voz geral</button>
+        <button class="botao pequeno" id="voz-mudo" hidden>Mutar</button>
+        <button class="botao pequeno sair" id="voz-sair" hidden>Sair da voz</button>
+      </div>
+      <p class="voz-status" id="voz-status">Coloque o fone, digite seu nome e clique em <b>Voz</b> na sua sala. Deixe esta aba aberta enquanto joga.</p>
+      <ul class="pessoas" id="voz-pessoas"></ul>
+    </section>
 
-  <section class="ajuda">
-    <p><b>Como jogar:</b> combinem quem fica em cada sala. Um entra como <b>Jogador 1</b> e o outro como <b>Jogador 2</b>. O resto pode <b>assistir</b> e revezar.</p>
-    <p><b>Controle:</b> conecte o controle (Xbox ou PlayStation) antes de abrir a sala e aperte qualquer botão com a página aberta. O Jogador 1 também pode usar o teclado: setas, J K L I, Enter = Start.</p>
-    <p>A sala vai pedir a senha de novo: é a mesma desta página.</p>
-  </section>
+    <main class="salas" id="salas"></main>
+
+    <section class="ajuda">
+      <p><b>Como jogar:</b> combinem quem fica em cada sala. Um entra como <b>Jogador 1</b> e o outro como <b>Jogador 2</b>. O resto pode <b>assistir</b> e revezar.</p>
+      <p><b>Conversar:</b> clique em <b>🎧 Voz</b> na sua sala (ou em <b>Voz geral</b>) e permita o microfone. A sala do jogo abre em outra aba; deixe esta aberta para continuar ouvindo.</p>
+      <p><b>Controle:</b> conecte o controle (Xbox ou PlayStation) antes de abrir a sala e aperte qualquer botão com a página aberta. O Jogador 1 também pode usar o teclado: setas, J K L I, Enter = Start.</p>
+      <p>A sala vai pedir a senha de novo: é a mesma desta página.</p>
+    </section>
+  </div>
 
   <script src="salas.js"></script>
   <script>
+    // ---- Salas -------------------------------------------------------------
     const lista = document.getElementById('salas');
-    for (const s of window.SALAS || []) {
+    const botoesVoz = {};
+    (window.SALAS || []).forEach((s, i) => {
+      const id = 'sala' + (i + 1);
       const el = document.createElement('article');
       el.className = 'sala';
       el.innerHTML =
         '<h2></h2>' +
         '<a class="botao p1" target="_blank" rel="noopener">Jogador 1</a>' +
         '<a class="botao p2" target="_blank" rel="noopener">Jogador 2</a>' +
-        '<a class="botao ver" target="_blank" rel="noopener">Assistir</a>';
+        '<a class="botao ver" target="_blank" rel="noopener">Assistir</a>' +
+        '<button class="botao voz-btn">🎧 Voz</button>';
       el.querySelector('h2').textContent = s.nome;
       const [p1, p2, ver] = el.querySelectorAll('a');
       p1.href = s.url;
       p2.href = s.url + '#player2';
       ver.href = s.url + '#shared';
+      const b = el.querySelector('button');
+      b.addEventListener('click', () => entrarVoz(id, s.nome));
+      botoesVoz[id] = { botao: b, cartao: el };
       lista.appendChild(el);
+    });
+
+    // ---- Chat de voz (WebRTC entre os navegadores) -------------------------
+    const $ = (id) => document.getElementById(id);
+    const campoNome = $('voz-nome');
+    try { campoNome.value = localStorage.getItem('naruto5-nome') || ''; } catch (e) {}
+
+    const ICE = window.VOZ_ICE || [{ urls: 'stun:stun.l.google.com:19302' }];
+    const URL_WS = window.VOZ_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/voz/ws');
+
+    let ws = null, meuId = null, salaAtual = null, microfone = null, mudo = false, audioCtx = null;
+    const pares = {}; // id -> { pc, nome, el, audio, nivel, pendentes, mudo }
+
+    $('voz-geral').addEventListener('click', () => entrarVoz('geral', 'Voz geral'));
+    $('voz-sair').addEventListener('click', () => sairVoz());
+    $('voz-mudo').addEventListener('click', () => {
+      mudo = !mudo;
+      microfone.getAudioTracks().forEach(t => t.enabled = !mudo);
+      $('voz-mudo').textContent = mudo ? 'Desmutar' : 'Mutar';
+      $('voz-mudo').classList.toggle('mutado', mudo);
+      const eu = pares[meuId];
+      if (eu) eu.el.classList.toggle('mudo', mudo);
+      enviar({ tipo: 'mudo', mudo });
+    });
+
+    function status(html) { $('voz-status').innerHTML = html; }
+    function enviar(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+
+    async function entrarVoz(sala, nomeSala) {
+      if (salaAtual === sala) return;
+      if (salaAtual) sairVoz();
+      const nome = campoNome.value.trim();
+      if (!nome) { campoNome.focus(); status('Digite seu nome antes de entrar na voz.'); return; }
+      try { localStorage.setItem('naruto5-nome', nome); } catch (e) {}
+
+      try {
+        microfone = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+      } catch (e) {
+        status('Não consegui usar o microfone. Permita o microfone para este site (cadeado na barra de endereço) e tente de novo.');
+        return;
+      }
+      audioCtx = audioCtx || new AudioContext();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      salaAtual = sala;
+      mudo = false;
+      $('voz-titulo').textContent = '🎧 ' + nomeSala;
+      $('voz-mudo').hidden = false; $('voz-mudo').textContent = 'Mutar'; $('voz-mudo').classList.remove('mutado');
+      $('voz-sair').hidden = false;
+      marcarBotao(sala);
+      status('Conectando...');
+
+      ws = new WebSocket(URL_WS);
+      ws.onopen = () => enviar({ tipo: 'entrar', sala, nome });
+      ws.onclose = () => { if (salaAtual === sala) { status('Conexão com o chat caiu. Clique em Voz para entrar de novo.'); sairVoz(true); } };
+      ws.onmessage = (e) => tratar(JSON.parse(e.data), nome);
+    }
+
+    async function tratar(m, meuNome) {
+      if (m.tipo === 'cheia') {
+        status('Essa voz está cheia (máximo 8 pessoas).');
+      } else if (m.tipo === 'bemvindo') {
+        meuId = m.id;
+        adicionarPessoa(meuId, meuNome + ' (você)', microfone, false);
+        status(m.pessoas.length ? 'Conectado. Fale à vontade!' : 'Conectado. Esperando a galera entrar...');
+        // Quem chega liga para quem já estava
+        for (const p of m.pessoas) {
+          const par = criarPar(p.id, p.nome, p.mudo);
+          const oferta = await par.pc.createOffer();
+          await par.pc.setLocalDescription(oferta);
+          enviar({ tipo: 'sinal', para: p.id, dados: { sdp: par.pc.localDescription } });
+        }
+      } else if (m.tipo === 'chegou') {
+        criarPar(m.id, m.nome, false);
+        status('Conectado. Fale à vontade!');
+      } else if (m.tipo === 'sinal') {
+        const par = pares[m.de];
+        if (!par) return;
+        const d = m.dados || {};
+        if (d.sdp) {
+          await par.pc.setRemoteDescription(d.sdp);
+          if (d.sdp.type === 'offer') {
+            await par.pc.setLocalDescription(await par.pc.createAnswer());
+            enviar({ tipo: 'sinal', para: m.de, dados: { sdp: par.pc.localDescription } });
+          }
+          for (const c of par.pendentes.splice(0)) await par.pc.addIceCandidate(c).catch(() => {});
+        } else if (d.ice) {
+          if (par.pc.remoteDescription) await par.pc.addIceCandidate(d.ice).catch(() => {});
+          else par.pendentes.push(d.ice);
+        }
+      } else if (m.tipo === 'mudo') {
+        const par = pares[m.id];
+        if (par) par.el.classList.toggle('mudo', m.mudo);
+      } else if (m.tipo === 'saiu') {
+        removerPessoa(m.id);
+      }
+    }
+
+    function criarPar(id, nome, estaMudo) {
+      const pc = new RTCPeerConnection({ iceServers: ICE });
+      microfone.getTracks().forEach(t => pc.addTrack(t, microfone));
+      const par = adicionarPessoa(id, nome, null, estaMudo);
+      par.pc = pc;
+      par.pendentes = [];
+      pc.onicecandidate = (e) => { if (e.candidate) enviar({ tipo: 'sinal', para: id, dados: { ice: e.candidate } }); };
+      pc.ontrack = (e) => {
+        par.audio.srcObject = e.streams[0];
+        par.audio.play().catch(() => {});
+        medirVolume(par, e.streams[0]);
+      };
+      pc.onconnectionstatechange = () => {
+        const st = pc.connectionState;
+        par.info.textContent = st === 'connected' ? '' : st === 'failed' ? 'sem conexão' : 'conectando...';
+      };
+      return par;
+    }
+
+    function adicionarPessoa(id, nome, streamLocal, estaMudo) {
+      const el = document.createElement('li');
+      el.className = 'pessoa' + (estaMudo ? ' mudo' : '');
+      el.innerHTML = '<span class="bola"></span><span class="nome"></span><span class="info"></span>';
+      el.querySelector('.nome').textContent = nome;
+      const par = { el, nome, info: el.querySelector('.info'), audio: null, pc: null };
+      if (!streamLocal) {
+        par.info.textContent = 'conectando...';
+        par.audio = new Audio();
+        par.audio.autoplay = true;
+        const vol = document.createElement('input');
+        vol.type = 'range'; vol.min = 0; vol.max = 1; vol.step = 0.05; vol.value = 1;
+        vol.title = 'Volume de ' + nome;
+        vol.addEventListener('input', () => par.audio.volume = vol.value);
+        el.appendChild(vol);
+      } else {
+        medirVolume(par, streamLocal);
+      }
+      pares[id] = par;
+      $('voz-pessoas').appendChild(el);
+      return par;
+    }
+
+    function medirVolume(par, stream) {
+      try {
+        const fonte = audioCtx.createMediaStreamSource(stream);
+        const an = audioCtx.createAnalyser();
+        an.fftSize = 512;
+        fonte.connect(an);
+        const buf = new Uint8Array(an.fftSize);
+        par.nivel = setInterval(() => {
+          an.getByteTimeDomainData(buf);
+          let pico = 0;
+          for (const v of buf) pico = Math.max(pico, Math.abs(v - 128));
+          par.el.classList.toggle('falando', pico > 12 && !par.el.classList.contains('mudo'));
+        }, 100);
+      } catch (e) {}
+    }
+
+    function removerPessoa(id) {
+      const par = pares[id];
+      if (!par) return;
+      if (par.pc) par.pc.close();
+      if (par.audio) par.audio.srcObject = null;
+      clearInterval(par.nivel);
+      par.el.remove();
+      delete pares[id];
+    }
+
+    function sairVoz(manterStatus) {
+      salaAtual = null;
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      Object.keys(pares).forEach(removerPessoa);
+      if (microfone) { microfone.getTracks().forEach(t => t.stop()); microfone = null; }
+      meuId = null;
+      $('voz-titulo').textContent = '🎧 Chat de voz';
+      $('voz-mudo').hidden = true;
+      $('voz-sair').hidden = true;
+      marcarBotao(null);
+      if (!manterStatus) status('Você saiu da voz.');
+    }
+
+    function marcarBotao(sala) {
+      $('voz-geral').classList.toggle('ativo', sala === 'geral');
+      for (const [id, v] of Object.entries(botoesVoz)) {
+        v.botao.classList.toggle('ativo', id === sala);
+        v.botao.textContent = id === sala ? '🎧 Na voz' : '🎧 Voz';
+        v.cartao.classList.toggle('na-voz', id === sala);
+      }
     }
   </script>
 </body>

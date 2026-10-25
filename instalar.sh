@@ -79,6 +79,12 @@ SALAS=${RESP:-$SALAS}
 [[ $SALAS =~ ^[1-9][0-9]?$ ]] || erro "numero de salas invalido: $SALAS"
 sed -i "s/^SALAS=.*/SALAS=$SALAS/" .configurado
 
+# Senha do TURN (retransmissor da voz para quem esta atras de CGNAT)
+if [[ -z ${TURN_SENHA:-} ]]; then
+  TURN_SENHA=$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')
+  echo "TURN_SENHA=$TURN_SENHA" >> .configurado
+fi
+
 # Endereco de cada coisa
 if [[ $MODO == normal ]]; then
   ENDERECO_ENTRADA="$DOMINIO"
@@ -104,8 +110,13 @@ AUTH="	basic_auth {
   echo "https://$ENDERECO_ENTRADA {"
   echo "$AUTH"
   [[ -n $TLS ]] && echo "$TLS"
-  echo "	root * /srv/entrada"
-  echo "	file_server"
+  echo "	handle /voz/ws {"
+  echo "		reverse_proxy voz:8765"
+  echo "	}"
+  echo "	handle {"
+  echo "		root * /srv/entrada"
+  echo "		file_server"
+  echo "	}"
   echo "}"
   for i in $(seq 1 "$SALAS"); do
     echo
@@ -124,6 +135,10 @@ cp pagina/index.html entrada/index.html
   for i in $(seq 1 "$SALAS"); do
     echo "  { nome: 'Sala $i', url: 'https://$(endereco_sala "$i")/' },"
   done
+  echo "];"
+  echo "window.VOZ_ICE = ["
+  echo "  { urls: 'stun:$IP:3478' },"
+  echo "  { urls: ['turn:$IP:3478?transport=udp', 'turn:$IP:3478?transport=tcp'], username: 'naruto', credential: '$TURN_SENHA' },"
   echo "];"
 } > entrada/salas.js
 
@@ -149,7 +164,6 @@ x-ambiente: &ambiente
   PUID: "1000"
   PGID: "1000"
   TZ: America/Sao_Paulo
-  LC_ALL: pt_BR.UTF-8
   # Resolucao fixa: menos trabalho para a VPS e mesma imagem para todos
   SELKIES_MANUAL_WIDTH: "1280"
   SELKIES_MANUAL_HEIGHT: "720"
@@ -177,6 +191,38 @@ $PORTAS_COMPOSE
       - ./caddy/config:/config
     restart: unless-stopped
     networks: [interna]
+
+  # Chat de voz: apresenta as pessoas de cada sala (o audio vai direto entre elas)
+  voz:
+    build: ./voz
+    container_name: naruto5-voz
+    restart: unless-stopped
+    networks: [interna]
+
+  # Retransmite a voz quando a conexao direta nao passa (CGNAT, 4G...)
+  turn:
+    image: coturn/coturn:4.6
+    container_name: naruto5-turn
+    network_mode: host
+    restart: unless-stopped
+    command:
+      - -n
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --external-ip=$IP
+      - --realm=naruto5
+      - --lt-cred-mech
+      - --user=naruto:$TURN_SENHA
+      - --fingerprint
+      - --no-tls
+      - --no-dtls
+      - --no-cli
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      - --log-file=stdout
 EOF
   for i in $(seq 1 "$SALAS"); do
     cat <<EOF
@@ -223,11 +269,12 @@ chown -R 1000:1000 config
 # --- 6. Firewall e subir -----------------------------------------------------
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   for p in $PORTAS_HOST; do ufw allow "$p/tcp"; done
+  ufw allow 3478 && ufw allow 49160:49200/udp
 fi
 
 msg "Subindo o servidor (a primeira vez demora alguns minutos)..."
-docker compose pull
-docker compose up -d --force-recreate --remove-orphans
+docker compose pull --ignore-buildable
+docker compose up -d --build --force-recreate --remove-orphans
 
 echo
 echo "=============================================================="
@@ -243,4 +290,7 @@ if [[ $MODO == teste ]]; then
   echo "  (certificado proprio). Clique em Avancado > Continuar, em cada sala."
   echo "  Libere as portas $PORTAS_HOST no firewall do painel da VPS, se houver."
 fi
+echo
+echo "  Chat de voz: no firewall do painel da VPS, libere tambem"
+echo "  3478 (TCP e UDP) e 49160-49200 (UDP)."
 echo "=============================================================="

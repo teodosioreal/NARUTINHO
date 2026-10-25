@@ -17,7 +17,9 @@ Página de entrada ──┼─ Sala 2 (PCSX2) ─► Jogador 1 + Jogador 2 + qu
 - **Salas**: cada sala é um PS2 separado, com seu próprio Jogador 1, Jogador 2 e espectadores. A página de entrada lista as salas com os botões **Jogador 1**, **Jogador 2** e **Assistir**.
 - **Todos os personagens liberados**: `ferramentas/liberar_personagens.py` grava os códigos do CodeMasters Project direto no executável da ISO (`201E94B4 24020003` e `201E95AC 2402FFFF`). Ele confere os bytes antes e não altera nada se a versão do jogo for outra.
 - **Save completo** (opcional): se existir `save/Mcd001.ps2`, cada sala começa com esse memory card. O progresso de cada sala é separado.
-- **PCSX2 já configurado**: abre o jogo sozinho em tela cheia, com renderizador por CPU (VPS sem placa de vídeo) e controles dos jogadores 1 e 2 já mapeados.
+- **Chat de voz** na página de entrada: cada um coloca o fone, entra na voz da sua sala (ou na voz geral) e conversa enquanto joga, com indicador de quem está falando, botão de mutar e volume por pessoa. O áudio vai direto entre os navegadores, e um servidor TURN na própria VPS garante a conexão mesmo em 4G ou internet com CGNAT.
+- **Direto para a luta**: dá para salvar o momento da tela de seleção do versus como ponto de partida de todas as salas (veja *Começar direto no versus*).
+- **PCSX2 já configurado**: abre o jogo sozinho em tela cheia, com renderizador por CPU (VPS sem placa de vídeo) e controles dos jogadores 1 e 2 já mapeados. Os atalhos de teclado do PCSX2 ficam desligados, então ninguém fecha o jogo ou abre menu sem querer.
 - **HTTPS de verdade e senha** pelo Caddy, com endereço grátis `IP.sslip.io` e salas em `sala1.IP.sslip.io`, `sala2...` (sem precisar comprar domínio).
 - **Navegador protegido**: ninguém abre terminal, arquivos ou sudo pela página.
 
@@ -61,6 +63,29 @@ O Jogador 2 precisa de um **controle** (USB ou Bluetooth, de Xbox ou PlayStation
 | □ | J | L2 / R2 | 1 / 3 |
 | △ | I | | |
 
+## Chat de voz
+
+1. Na página de entrada, digite seu nome e clique em **🎧 Voz** na sua sala (ou em **Voz geral**).
+2. Permita o microfone quando o navegador pedir.
+3. Abra a sala do jogo, que abre em outra aba. **Deixe a aba da página de entrada aberta** para continuar falando e ouvindo.
+
+Use **fone de ouvido**: sem fone, o som do jogo vaza para o microfone. São no máximo 8 pessoas por voz.
+
+## Começar direto no versus
+
+Para as salas já abrirem na tela de seleção de personagens, sem abertura nem menus:
+
+1. Abra a **Sala 1** e vá até a tela de seleção de personagens do versus.
+2. Na VPS, rode:
+   ```bash
+   cd /opt/naruto5 && sudo bash ferramentas/sala.sh inicio
+   ```
+   Isso salva esse momento e copia para todas as salas.
+
+Depois disso:
+- `sudo bash ferramentas/sala.sh reiniciar 2` volta a sala 2 para a seleção de personagens na hora (útil se alguém se perder nos menus).
+- `sudo bash ferramentas/sala.sh tirar-inicio` desfaz, e as salas voltam a abrir do zero.
+
 ## VPS recomendada
 
 Cada sala é um PS2 inteiro rodando na CPU, mais a codificação do vídeo. A conta é **cerca de 4 vCPUs e 2 GB de RAM por sala**.
@@ -91,4 +116,5 @@ Os saves de cada sala ficam em `config/salaN/.config/PCSX2/memcards/`.
 - **Jogo lento / som picotando**: CPU fraca para o número de salas. Diminua as salas ou use uma VPS maior.
 - **Tela preta**: rode `docker compose logs sala1`. Se aparecer erro de *seccomp*, adicione `security_opt: [seccomp:unconfined]` em `x-sala` no `instalar.sh` e rode o instalador de novo.
 - **Erro de certificado ou site não abre**: confira se as portas 80 e 443 estão liberadas no firewall do painel da VPS.
+- **Voz conecta mas ninguém se ouve** (fica em "conectando..." ou "sem conexão"): libere 3478 (TCP e UDP) e 49160-49200 (UDP) no firewall do painel da VPS.
 - **Controle do Jogador 2 não funciona**: ele precisa entrar pelo botão **Jogador 2** e apertar um botão do controle com a página em foco.

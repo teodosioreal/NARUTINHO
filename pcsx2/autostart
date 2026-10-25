@@ -1,4 +1,10 @@
 #!/bin/bash
 
-# Abre o Naruto 5 direto, em tela cheia
-/usr/games/pcsx2-qt -fullscreen -- /jogo/naruto5.iso
+# Abre o Naruto 5 direto, em tela cheia. Se ja existe o estado inicial
+# (tela de selecao do versus, criado com ferramentas/sala.sh inicio),
+# a sala comeca direto nele, pulando aberturas e menus.
+ARGS=()
+if ls /config/.config/PCSX2/sstates/*.01.p2s >/dev/null 2>&1; then
+  ARGS=(-state 1)
+fi
+/usr/games/pcsx2-qt -fullscreen "${ARGS[@]}" -- /jogo/naruto5.iso
